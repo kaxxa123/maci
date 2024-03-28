@@ -12,6 +12,8 @@ include "./stateLeafAndBallotTransformerNonQv.circom";
 include "./trees/incrementalQuinTree.circom";
 include "./utils.circom";
 include "./processMessages.circom";
+include "./trees/binaryMerkleTree.circom";
+include "./trees/incrementalMerkleTree.circom";
 
 // Proves the correctness of processing a batch of messages.
 template ProcessMessagesNonQv(
@@ -32,7 +34,7 @@ template ProcessMessagesNonQv(
     assert(voteOptionTreeDepth > 0);
     assert(msgTreeDepth >= msgBatchDepth);
 
-    // default to quinary merkle tree
+    var STATE_TREE_ARITY = 2;
     var TREE_ARITY = 5;
     var batchSize = TREE_ARITY ** msgBatchDepth;
 
@@ -111,7 +113,7 @@ template ProcessMessagesNonQv(
     // Likewise, currentStateLeavesPathElements contains the Merkle path to
     // each incremental new state root.
     signal input currentStateLeaves[batchSize][STATE_LEAF_LENGTH];
-    signal input currentStateLeavesPathElements[batchSize][stateTreeDepth][TREE_ARITY - 1];
+    signal input currentStateLeavesPathElements[batchSize][stateTreeDepth];
 
     // The salted commitment to the state root and ballot root
     signal input currentSbCommitment;
@@ -126,7 +128,7 @@ template ProcessMessagesNonQv(
 
     // Intermediate ballots, like currentStateLeaves
     signal input currentBallots[batchSize][BALLOT_LENGTH];
-    signal input currentBallotsPathElements[batchSize][stateTreeDepth][TREE_ARITY - 1];
+    signal input currentBallotsPathElements[batchSize][stateTreeDepth][STATE_TREE_ARITY - 1];
 
     signal input currentVoteWeights[batchSize];
     signal input currentVoteWeightsPathElements[batchSize][voteOptionTreeDepth][TREE_ARITY - 1];
@@ -280,6 +282,7 @@ template ProcessMessagesNonQv(
     component processors[batchSize]; 
     // topup type processor
     component processors2[batchSize]; 
+
     for (var i = batchSize - 1; i >= 0; i--) {
         // process it as vote type message
         processors[i] = ProcessOneNonQv(stateTreeDepth, voteOptionTreeDepth);
@@ -301,14 +304,12 @@ template ProcessMessagesNonQv(
         }
 
         for (var j = 0; j < stateTreeDepth; j++) {
-            for (var k = 0; k < TREE_ARITY - 1; k++) {
+            // path elements for the state tree 
+            processors[i].stateLeafPathElements[j] 
+                <== currentStateLeavesPathElements[i][j];
 
-                processors[i].stateLeafPathElements[j][k] 
-                    <== currentStateLeavesPathElements[i][j][k];
-
-                processors[i].ballotPathElements[j][k]
-                    <== currentBallotsPathElements[i][j][k];
-            }
+            processors[i].ballotPathElements[j][0]
+                <== currentBallotsPathElements[i][j][0];
         }
 
         processors[i].currentVoteWeight <== currentVoteWeights[i];
@@ -346,12 +347,12 @@ template ProcessMessagesNonQv(
         for (var j = 0; j < STATE_LEAF_LENGTH; j++) {
             processors2[i].stateLeaf[j] <== currentStateLeaves[i][j];
         }
-        for (var j = 0; j < stateTreeDepth; j++) {
-            for (var k = 0; k < TREE_ARITY - 1; k++) {
-                processors2[i].stateLeafPathElements[j][k] 
-                    <== currentStateLeavesPathElements[i][j][k];
-            }
+
+        for (var k = 0; k < stateTreeDepth; k++) {
+            processors2[i].stateLeafPathElements[k] 
+                <== currentStateLeavesPathElements[i][k];
         }
+
         // pick the correct result by msg type
         tmpStateRoot1[i] <== processors[i].newStateRoot * (2 - msgs[i][0]); 
         tmpStateRoot2[i] <== processors2[i].newStateRoot * (msgs[i][0] - 1);
@@ -382,6 +383,7 @@ template ProcessOneNonQv(stateTreeDepth, voteOptionTreeDepth) {
     var MSG_LENGTH = 11;
     var PACKED_CMD_LENGTH = 4;
     var TREE_ARITY = 5;
+    var STATE_TREE_ARITY = 2;
 
     var BALLOT_NONCE_IDX = 0;
     var BALLOT_VO_ROOT_IDX = 1;
@@ -403,10 +405,10 @@ template ProcessOneNonQv(stateTreeDepth, voteOptionTreeDepth) {
     signal input currentBallotRoot;
 
     signal input stateLeaf[STATE_LEAF_LENGTH];
-    signal input stateLeafPathElements[stateTreeDepth][TREE_ARITY - 1];
+    signal input stateLeafPathElements[stateTreeDepth];
 
     signal input ballot[BALLOT_LENGTH];
-    signal input ballotPathElements[stateTreeDepth][TREE_ARITY - 1];
+    signal input ballotPathElements[stateTreeDepth][STATE_TREE_ARITY - 1];
 
     signal input currentVoteWeight;
     signal input currentVoteWeightsPathElements[voteOptionTreeDepth][TREE_ARITY - 1];
@@ -482,24 +484,20 @@ template ProcessOneNonQv(stateTreeDepth, voteOptionTreeDepth) {
     // @note that we expect a coordinator to send the state leaf corresponding to a message
     // which specifies a valid state index. If this is not the case, the 
     // proof will fail to generate. 
-    component stateLeafPathIndices = QuinGeneratePathIndices(stateTreeDepth);
+    component stateLeafPathIndices = MerkleGeneratePathIndices(stateTreeDepth);
     stateLeafPathIndices.in <== indexMux.out;
 
     //  ----------------------------------------------------------------------- 
     // 3. Verify that the original state leaf exists in the given state root
-    component stateLeafQip = QuinTreeInclusionProof(stateTreeDepth);
-    component stateLeafHasher = Hasher4();
-    for (var i = 0; i < STATE_LEAF_LENGTH; i++) {
-        stateLeafHasher.in[i] <== stateLeaf[i];
-    }
-    stateLeafQip.leaf <== stateLeafHasher.hash;
-    for (var i = 0; i < stateTreeDepth; i++) {
-        stateLeafQip.path_index[i] <== stateLeafPathIndices.out[i];
-        for (var j = 0; j < TREE_ARITY - 1; j++) {
-            stateLeafQip.path_elements[i][j] <== stateLeafPathElements[i][j];
-        }
-    }
-    stateLeafQip.root === currentStateRoot;
+    var stateLeafHash = Hasher4()(stateLeaf);
+
+    var stateRootCalculated = LeanBinaryMerkleRoot(stateTreeDepth)(
+        stateLeafHash, 
+        stateLeafPathIndices.out, 
+        stateLeafPathElements
+    );
+
+    stateRootCalculated === currentStateRoot;
 
     //  ----------------------------------------------------------------------- 
     // 4. Verify that the original ballot exists in the given ballot root
@@ -507,15 +505,13 @@ template ProcessOneNonQv(stateTreeDepth, voteOptionTreeDepth) {
     ballotHasher.left <== ballot[BALLOT_NONCE_IDX];
     ballotHasher.right <== ballot[BALLOT_VO_ROOT_IDX];
 
-    component ballotQip = QuinTreeInclusionProof(stateTreeDepth);
-    ballotQip.leaf <== ballotHasher.hash;
-    for (var i = 0; i < stateTreeDepth; i++) {
-        ballotQip.path_index[i] <== stateLeafPathIndices.out[i];
-        for (var j = 0; j < TREE_ARITY - 1; j++) {
-            ballotQip.path_elements[i][j] <== ballotPathElements[i][j];
-        }
-    }
-    ballotQip.root === currentBallotRoot;
+    var ballotCalculatedRoot = MerkleTreeInclusionProof(stateTreeDepth)(
+        ballotHasher.hash, 
+        stateLeafPathIndices.out, 
+        ballotPathElements
+    );
+    
+    ballotCalculatedRoot === currentBallotRoot;
 
     //  ----------------------------------------------------------------------- 
     // 5. Verify that currentVoteWeight exists in the ballot's vote option root
@@ -602,15 +598,14 @@ template ProcessOneNonQv(stateTreeDepth, voteOptionTreeDepth) {
     newStateLeafHasher.in[STATE_LEAF_VOICE_CREDIT_BALANCE_IDX] <== voiceCreditBalanceMux.out;
     newStateLeafHasher.in[STATE_LEAF_TIMESTAMP_IDX] <== stateLeaf[STATE_LEAF_TIMESTAMP_IDX];
 
-    component newStateLeafQip = QuinTreeInclusionProof(stateTreeDepth);
-    newStateLeafQip.leaf <== newStateLeafHasher.hash;
-    for (var i = 0; i < stateTreeDepth; i++) {
-        newStateLeafQip.path_index[i] <== stateLeafPathIndices.out[i];
-        for (var j = 0; j < TREE_ARITY - 1; j++) {
-            newStateLeafQip.path_elements[i][j] <== stateLeafPathElements[i][j];
-        }
-    }
-    newStateRoot <== newStateLeafQip.root;
+    // @todo here we calculate the new root so it doesn't matter the tree structure we are 
+    // updating
+    var newStateRootCalculated = LeanBinaryMerkleRoot(stateTreeDepth)(
+        newStateLeafHasher.hash, 
+        stateLeafPathIndices.out, 
+        stateLeafPathElements
+    );
+    newStateRoot <== newStateRootCalculated;
 
     //  ----------------------------------------------------------------------- 
     // 7. Generate a new ballot root
@@ -624,13 +619,11 @@ template ProcessOneNonQv(stateTreeDepth, voteOptionTreeDepth) {
     newBallotHasher.left <== newBallotNonceMux.out;
     newBallotHasher.right <== newBallotVoRoot;
 
-    component newBallotQip = QuinTreeInclusionProof(stateTreeDepth);
-    newBallotQip.leaf <== newBallotHasher.hash;
-    for (var i = 0; i < stateTreeDepth; i++) {
-        newBallotQip.path_index[i] <== stateLeafPathIndices.out[i];
-        for (var j = 0; j < TREE_ARITY - 1; j++) {
-            newBallotQip.path_elements[i][j] <== ballotPathElements[i][j];
-        }
-    }
-    newBallotRoot <== newBallotQip.root;
+    var calculatedNewBallotRoot = MerkleTreeInclusionProof(stateTreeDepth)(
+        newBallotHasher.hash, 
+        stateLeafPathIndices.out, 
+        ballotPathElements
+    );
+
+    newBallotRoot <== calculatedNewBallotRoot;
 }

@@ -55,7 +55,7 @@ const config: HardhatUserConfig = {
       },
     },
   },
-  defaultNetwork: "localhost",
+  defaultNetwork: "hardhat",
   networks: {
     sepolia: getCommonNetworkConfig(ESupportedChains.Sepolia, EChainId.Sepolia),
     optimism_sepolia: getCommonNetworkConfig(ESupportedChains.OptimismSepolia, EChainId.OptimismSepolia),

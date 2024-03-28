@@ -87,6 +87,7 @@ describe("e2e tests", function test() {
     coordinatorPrivKey,
     processWasm: testProcessMessagesWasmPath,
     tallyWasm: testTallyVotesWasmPath,
+    blocksPerBatch: 5000,
     useWasm,
     useQuadraticVoting: true,
   };
@@ -97,6 +98,7 @@ describe("e2e tests", function test() {
 
     // we deploy the vk registry contract
     await deployVkRegistryContract({ signer });
+
     // we set the verifying keys
     await setVerifyingKeys({ ...setVerifyingKeysArgs, signer });
   });
@@ -435,21 +437,21 @@ describe("e2e tests", function test() {
     });
   });
 
-  describe("30 signups (31 ballots), 4 messages", () => {
+  describe("24 signups (25 ballots), 24 messages", () => {
     after(() => {
       clean();
     });
 
-    const users = Array.from({ length: 30 }, () => new Keypair());
+    const users = Array.from({ length: 24 }, () => new Keypair());
 
     before(async () => {
       // deploy the smart contracts
       maciAddresses = await deploy({ ...deployArgs, signer });
       // deploy a poll contract
-      pollAddresses = await deployPoll({ ...deployPollArgs, signer });
+      pollAddresses = await deployPoll({ ...deployPollArgs, pollDuration: 500, signer });
     });
 
-    it("should signup thirty users", async () => {
+    it("should signup 24 users", async () => {
       // eslint-disable-next-line @typescript-eslint/prefer-for-of
       for (let i = 0; i < users.length; i += 1) {
         // eslint-disable-next-line no-await-in-loop
@@ -457,63 +459,27 @@ describe("e2e tests", function test() {
       }
     });
 
-    it("should publish 4 messages", async () => {
-      // publish four different messages
-      await publish({
-        maciAddress: maciAddresses.maciAddress,
-        pubkey: users[0].pubKey.serialize(),
-        stateIndex: 1n,
-        voteOptionIndex: 0n,
-        nonce: 1n,
-        pollId: 0n,
-        newVoteWeight: 9n,
-        salt: genRandomSalt(),
-        privateKey: users[0].privKey.serialize(),
-        signer,
-      });
-
-      await publish({
-        maciAddress: maciAddresses.maciAddress,
-        pubkey: users[1].pubKey.serialize(),
-        stateIndex: 2n,
-        voteOptionIndex: 1n,
-        nonce: 1n,
-        pollId: 0n,
-        newVoteWeight: 9n,
-        salt: genRandomSalt(),
-        privateKey: users[1].privKey.serialize(),
-        signer,
-      });
-
-      await publish({
-        maciAddress: maciAddresses.maciAddress,
-        pubkey: users[2].pubKey.serialize(),
-        stateIndex: 3n,
-        voteOptionIndex: 2n,
-        nonce: 1n,
-        pollId: 0n,
-        newVoteWeight: 9n,
-        salt: genRandomSalt(),
-        privateKey: users[2].privKey.serialize(),
-        signer,
-      });
-
-      await publish({
-        maciAddress: maciAddresses.maciAddress,
-        pubkey: users[3].pubKey.serialize(),
-        stateIndex: 4n,
-        voteOptionIndex: 3n,
-        nonce: 1n,
-        pollId: 0n,
-        newVoteWeight: 9n,
-        salt: genRandomSalt(),
-        privateKey: users[3].privKey.serialize(),
-        signer,
-      });
+    it("should publish 24 messages", async () => {
+      // eslint-disable-next-line @typescript-eslint/prefer-for-of
+      for (let i = 0; i < users.length; i += 1) {
+        // eslint-disable-next-line no-await-in-loop
+        await publish({
+          maciAddress: maciAddresses.maciAddress,
+          pubkey: users[i].pubKey.serialize(),
+          stateIndex: BigInt(i + 1),
+          voteOptionIndex: 0n,
+          nonce: 1n,
+          pollId: 0n,
+          newVoteWeight: 9n,
+          salt: genRandomSalt(),
+          privateKey: users[i].privKey.serialize(),
+          signer,
+        });
+      }
     });
 
     it("should generate zk-SNARK proofs and verify them", async () => {
-      await timeTravel({ ...timeTravelArgs, signer });
+      await timeTravel({ ...timeTravelArgs, seconds: 500, signer });
       await mergeMessages({ ...mergeMessagesArgs, signer });
       await mergeSignups({ ...mergeSignupsArgs, signer });
       const tallyFileData = await genProofs({ ...genProofsArgs, signer });

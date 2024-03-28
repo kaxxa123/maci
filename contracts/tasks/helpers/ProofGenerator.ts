@@ -102,7 +102,7 @@ export class ProofGenerator {
           .queryFilter(maciContract.filters.DeployPoll(), startBlock)
           .then((events) => events[0]?.blockNumber ?? 0),
         pollContract.treeDepths(),
-        maciContract.getStateAqRoot(),
+        maciContract.getStateTreeRoot(),
         maciContract.numSignUps(),
       ]);
     const defaultStartBlock = Math.min(defaultStartBlockPoll, defaultStartBlockSignup);
@@ -114,7 +114,7 @@ export class ProofGenerator {
         .queryFilter(pollContract.filters.MergeMessageAq(messageRoot), fromBlock)
         .then((events) => events[events.length - 1]?.blockNumber),
       pollContract
-        .queryFilter(pollContract.filters.MergeMaciStateAq(stateRoot, numSignups), fromBlock)
+        .queryFilter(pollContract.filters.SyncMaciStateTree(stateRoot, numSignups), fromBlock)
         .then((events) => events[events.length - 1]?.blockNumber),
     ]).then((blocks) => Math.max(...blocks));
 

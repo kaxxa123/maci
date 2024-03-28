@@ -27,18 +27,11 @@ interface IPoll {
   /// to encrypt the message.
   function publishMessage(DomainObjs.Message memory _message, DomainObjs.PubKey calldata _encPubKey) external;
 
-  /// @notice The first step of merging the MACI state AccQueue. This allows the
-  /// ProcessMessages circuit to access the latest state tree and ballots via
-  /// currentSbCommitment.
-  /// @param _numSrQueueOps Number of operations
-  /// @param _pollId The ID of the active Poll
-  function mergeMaciStateAqSubRoots(uint256 _numSrQueueOps, uint256 _pollId) external;
-
   /// @notice The second step of merging the MACI state AccQueue. This allows the
   /// ProcessMessages circuit to access the latest state tree and ballots via
   /// currentSbCommitment.
   /// @param _pollId The ID of the active Poll
-  function mergeMaciStateAq(uint256 _pollId) external;
+  function syncMaciStateTree(uint256 _pollId) external;
 
   /// @notice The first step in merging the message AccQueue so that the
   /// ProcessMessages circuit can access the message root.
@@ -54,9 +47,9 @@ interface IPoll {
   /// @return _duration The duration of the poll
   function getDeployTimeAndDuration() external view returns (uint256 _deployTime, uint256 _duration);
 
-  /// @notice Get the result of whether the MACI contract's stateAq has been merged by this contract
-  /// @return Whether the MACI contract's stateAq has been merged by this contract
-  function stateAqMerged() external view returns (bool);
+  /// @notice Get the result of whether the MACI contract's stateTree data has been synced by this contract
+  /// @return Whether the MACI contract's stateTree data has been synced by this contract
+  function stateTreeSynced() external view returns (bool);
 
   /// @notice Get the depths of the merkle trees
   /// @return intStateTreeDepth The depth of the state tree

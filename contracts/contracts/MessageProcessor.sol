@@ -76,7 +76,7 @@ contract MessageProcessor is Ownable, SnarkCommon, Hasher, CommonUtilities, IMes
     }
 
     // The state AccQueue must be merged
-    if (!poll.stateAqMerged()) {
+    if (!poll.stateTreeSynced()) {
       revert StateAqNotMerged();
     }
 

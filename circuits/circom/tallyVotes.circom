@@ -4,6 +4,7 @@ pragma circom 2.0.0;
 include "./comparators.circom";
 
 // local imports
+include "./trees/incrementalMerkleTree.circom";
 include "./trees/incrementalQuinTree.circom";
 include "./trees/calculateTotal.circom";
 include "./trees/checkRoot.circom";
@@ -22,9 +23,10 @@ template TallyVotes(
     assert(intStateTreeDepth < stateTreeDepth);
 
     var TREE_ARITY = 5;
+    var BALLOT_TREE_ARITY = 2;
 
     // The number of ballots in this batch
-    var batchSize = TREE_ARITY ** intStateTreeDepth;
+    var batchSize = BALLOT_TREE_ARITY ** intStateTreeDepth;
     var numVoteOptions = TREE_ARITY ** voteOptionTreeDepth;
 
     var BALLOT_LENGTH = 2;
@@ -51,7 +53,7 @@ template TallyVotes(
     var k = stateTreeDepth - intStateTreeDepth;
     // The ballots
     signal input ballots[batchSize][BALLOT_LENGTH];
-    signal input ballotPathElements[k][TREE_ARITY - 1];
+    signal input ballotPathElements[k][BALLOT_TREE_ARITY - 1];
     signal input votes[batchSize][numVoteOptions];
 
     signal input currentResults[numVoteOptions];
@@ -102,27 +104,23 @@ template TallyVotes(
     // Verify the ballots
 
     // Hash each ballot and generate the subroot of the ballots
-    component ballotSubroot = QuinCheckRoot(intStateTreeDepth);
-    component ballotHashers[batchSize];
+
+    // get the path indices
+    component pathIndicesBallot = MerkleGeneratePathIndices(k);
+    pathIndicesBallot.in <== inputHasher.batchNum;
+    
+    // calculate the root using all leaves
+    component ballotSubroot = BinaryCheckRoot(intStateTreeDepth);
     for (var i = 0; i < batchSize; i++) {
-        ballotHashers[i] = HashLeftRight();
-        ballotHashers[i].left <== ballots[i][BALLOT_NONCE_IDX];
-        ballotHashers[i].right <== ballots[i][BALLOT_VO_ROOT_IDX];
-
-        ballotSubroot.leaves[i] <== ballotHashers[i].hash;
+        ballotSubroot.leaves[i] <== HashLeftRight()(ballots[i][BALLOT_NONCE_IDX], ballots[i][BALLOT_VO_ROOT_IDX]);
     }
 
-    component ballotQle = QuinLeafExists(k);
-    component ballotPathIndices = QuinGeneratePathIndices(k);
-    ballotPathIndices.in <== inputHasher.batchNum;
-    ballotQle.leaf <== ballotSubroot.root;
-    ballotQle.root <== ballotRoot;
-    for (var i = 0; i < k; i++) {
-        ballotQle.path_index[i] <== ballotPathIndices.out[i];
-        for (var j = 0; j < TREE_ARITY - 1; j++) {
-            ballotQle.path_elements[i][j] <== ballotPathElements[i][j];
-        }
-    }
+    // just call the component to ensure the constraint is checked
+    component ballotLeafExist = LeafExists(k);
+    ballotLeafExist.leaf <== ballotSubroot.root;
+    ballotLeafExist.path_elements <== ballotPathElements;
+    ballotLeafExist.path_index <== pathIndicesBallot.out;
+    ballotLeafExist.root <== ballotRoot;
 
     //  ----------------------------------------------------------------------- 
     // Verify the vote option roots

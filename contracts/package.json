@@ -80,6 +80,7 @@
     "maci-core": "^1.2.0",
     "maci-crypto": "^1.2.0",
     "maci-domainobjs": "^1.2.0",
+    "poseidon-solidity": "^0.0.5",
     "solidity-docgen": "^0.6.0-beta.36"
   },
   "devDependencies": {

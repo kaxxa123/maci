@@ -95,10 +95,10 @@ task("prove", "Command to generate proof and prove the result of a poll on-chain
         name: EContracts.AccQueue,
         address: messageAqContractAddress,
       });
-      const isStateAqMerged = await pollContract.stateAqMerged();
+      const isstateTreeSynced = await pollContract.stateTreeSynced();
 
       // Check that the state and message trees have been merged for at least the first poll
-      if (!isStateAqMerged && poll.toString() === "0") {
+      if (!isstateTreeSynced && poll.toString() === "0") {
         throw new Error("The state tree has not been merged yet. Please use the mergeSignups subcommmand to do so.");
       }
 

@@ -1,5 +1,5 @@
 import { expect } from "chai";
-import { hash5, NOTHING_UP_MY_SLEEVE, IncrementalQuinTree, AccQueue } from "maci-crypto";
+import { hash5, NOTHING_UP_MY_SLEEVE, IncrementalQuinTree } from "maci-crypto";
 import { PCommand, Keypair, StateLeaf, blankStateLeafHash } from "maci-domainobjs";
 
 import { MaciState } from "../MaciState";
@@ -356,8 +356,7 @@ describe("MaciState/Poll e2e", function test() {
     let maciState: MaciState;
     let pollId: bigint;
     let poll: Poll;
-    let msgTree: IncrementalQuinTree;
-    let stateTree: IncrementalQuinTree;
+
     const voteWeight = 9n;
     const voteOptionIndex = 0n;
     let stateIndex: number;
@@ -365,8 +364,6 @@ describe("MaciState/Poll e2e", function test() {
 
     before(() => {
       maciState = new MaciState(STATE_TREE_DEPTH);
-      msgTree = new IncrementalQuinTree(treeDepths.messageTreeDepth, NOTHING_UP_MY_SLEEVE, 5, hash5);
-      stateTree = new IncrementalQuinTree(STATE_TREE_DEPTH, blankStateLeafHash, STATE_TREE_ARITY, hash5);
 
       pollId = maciState.deployPoll(
         BigInt(Math.floor(Date.now() / 1000) + duration),
@@ -377,25 +374,13 @@ describe("MaciState/Poll e2e", function test() {
       );
 
       poll = maciState.polls.get(pollId)!;
-    });
 
-    // The end result should be that option 0 gets 3 votes
-    // because the user spends 9 voice credits on it
-    it("the state root should be correct", () => {
       const timestamp = BigInt(Math.floor(Date.now() / 1000));
-      const stateLeaf = new StateLeaf(userKeypair.pubKey, voiceCreditBalance, timestamp);
 
       stateIndex = maciState.signUp(userKeypair.pubKey, voiceCreditBalance, timestamp);
-      stateTree.insert(blankStateLeafHash);
-      stateTree.insert(stateLeaf.hash());
 
       poll.updatePoll(BigInt(maciState.stateLeaves.length));
 
-      expect(stateIndex.toString()).to.eq("1");
-      expect(stateTree.root.toString()).to.eq(poll.stateTree?.root.toString());
-    });
-
-    it("the message root should be correct", () => {
       const command = new PCommand(
         BigInt(stateIndex),
         userKeypair.pubKey,
@@ -412,21 +397,10 @@ describe("MaciState/Poll e2e", function test() {
       const message = command.encrypt(signature, sharedKey);
 
       poll.publishMessage(message, ecdhKeypair.pubKey);
-      msgTree.insert(message.hash(ecdhKeypair.pubKey));
-
-      // Use the accumulator queue to compare the root of the message tree
-      const accumulatorQueue: AccQueue = new AccQueue(
-        treeDepths.messageTreeSubDepth,
-        STATE_TREE_ARITY,
-        NOTHING_UP_MY_SLEEVE,
-      );
-      accumulatorQueue.enqueue(message.hash(ecdhKeypair.pubKey));
-      accumulatorQueue.mergeSubRoots(0);
-      accumulatorQueue.merge(treeDepths.messageTreeDepth);
-
-      expect(accumulatorQueue.getRoot(treeDepths.messageTreeDepth)?.toString()).to.eq(msgTree.root.toString());
     });
 
+    // The end result should be that option 0 gets 3 votes
+    // because the user spends 9 voice credits on it
     it("packProcessMessageSmallVals and unpackProcessMessageSmallVals", () => {
       const maxVoteOptions = 1n;
       const numUsers = 2n;
@@ -458,7 +432,9 @@ describe("MaciState/Poll e2e", function test() {
 
       expect(poll.hasUntalliedBallots()).to.eq(true);
 
-      poll.tallyVotes();
+      while (poll.hasUntalliedBallots()) {
+        poll.tallyVotes();
+      }
 
       const finalTotal = calculateTotal(poll.tallyResult);
       expect(finalTotal.toString()).to.eq(voteWeight.toString());
@@ -587,8 +563,10 @@ describe("MaciState/Poll e2e", function test() {
       // Check that there are untallied results
       expect(poll.hasUntalliedBallots()).to.eq(true);
 
-      // First batch tally
-      poll.tallyVotes();
+      // tally all batches
+      while (poll.hasUntalliedBallots()) {
+        poll.tallyVotes();
+      }
 
       // Recall that each user `i` cast the same number of votes for
       // their option `i`

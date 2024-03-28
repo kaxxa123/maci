@@ -1,4 +1,5 @@
 import { genTreeProof } from "maci-crypto";
+import { MESSAGE_TREE_ARITY } from "maci-core";
 
 import type { TallyData } from "./interfaces";
 import type { Tally } from "maci-contracts";
@@ -27,6 +28,7 @@ export const verifyPerVOSpentVoiceCredits = async (
       i,
       tallyData.perVOSpentVoiceCredits!.tally.map((x) => BigInt(x)),
       voteOptionTreeDepth,
+      MESSAGE_TREE_ARITY,
     );
 
     // eslint-disable-next-line no-await-in-loop
@@ -70,6 +72,7 @@ export const verifyTallyResults = async (
       i,
       tallyData.results.tally.map((x) => BigInt(x)),
       voteOptionTreeDepth,
+      MESSAGE_TREE_ARITY,
     );
 
     // eslint-disable-next-line no-await-in-loop

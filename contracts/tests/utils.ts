@@ -20,9 +20,9 @@ import {
 import { IDeployedTestContracts } from "../ts/types";
 import { AccQueue as AccQueueContract, FreeForAllGatekeeper } from "../typechain-types";
 
-export const insertSubTreeGasLimit = { gasLimit: 300000 };
-export const enqueueGasLimit = { gasLimit: 500000 };
-export const fillGasLimit = { gasLimit: 4000000 };
+export const insertSubTreeGasLimit = { gasLimit: 800000 };
+export const enqueueGasLimit = { gasLimit: 800000 };
+export const fillGasLimit = { gasLimit: 15000000 };
 
 /**
  * Travel in time in a local blockchain node
@@ -514,7 +514,7 @@ export const deployTestContracts = async (
       topupCreditContract.getAddress(),
     ]);
 
-  const { maciContract, stateAqContract } = await deployMaci({
+  const { maciContract } = await deployMaci({
     signUpTokenGatekeeperContractAddress: gatekeeperContractAddress,
     initialVoiceCreditBalanceAddress: constantIntialVoiceCreditProxyContractAddress,
     topupCreditContractAddress,
@@ -528,7 +528,6 @@ export const deployTestContracts = async (
     gatekeeperContract,
     constantIntialVoiceCreditProxyContract,
     maciContract,
-    stateAqContract,
     vkRegistryContract,
     topupCreditContract,
   };

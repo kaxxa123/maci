@@ -36,8 +36,8 @@ contract Poll is Params, Utilities, SnarkCommon, Ownable, EmptyBallotRoots, IPol
   // The duration of the polling period, in seconds
   uint256 internal immutable duration;
 
-  /// @notice Whether the MACI contract's stateAq has been merged by this contract
-  bool public stateAqMerged;
+  /// @notice Whether the MACI contract's state has been synced by this contract
+  bool public stateTreeSynced;
 
   /// @notice Get the commitment to the state leaves and the ballots. This is
   /// hash3(stateRoot, ballotRoot, salt).
@@ -69,14 +69,13 @@ contract Poll is Params, Utilities, SnarkCommon, Ownable, EmptyBallotRoots, IPol
   error PollAlreadyInit();
   error TooManyMessages();
   error MaciPubKeyLargerThanSnarkFieldSize();
-  error StateAqAlreadyMerged();
+  error StateTreeAlreadySynced();
   error StateAqSubtreesNeedMerge();
   error InvalidBatchLength();
 
   event PublishMessage(Message _message, PubKey _encPubKey);
   event TopupMessage(Message _message);
-  event MergeMaciStateAqSubRoots(uint256 indexed _numSrQueueOps);
-  event MergeMaciStateAq(uint256 indexed _stateRoot, uint256 indexed _numSignups);
+  event SyncMaciStateTree(uint256 indexed _stateRoot, uint256 indexed _numSignups);
   event MergeMessageAqSubRoots(uint256 indexed _numSrQueueOps);
   event MergeMessageAq(uint256 indexed _messageRoot);
 
@@ -219,29 +218,15 @@ contract Poll is Params, Utilities, SnarkCommon, Ownable, EmptyBallotRoots, IPol
   }
 
   /// @inheritdoc IPoll
-  function mergeMaciStateAqSubRoots(uint256 _numSrQueueOps, uint256 _pollId) public onlyOwner isAfterVotingDeadline {
-    // This function cannot be called after the stateAq was merged
-    if (stateAqMerged) revert StateAqAlreadyMerged();
-
-    // merge subroots
-    extContracts.maci.mergeStateAqSubRoots(_numSrQueueOps, _pollId);
-
-    emit MergeMaciStateAqSubRoots(_numSrQueueOps);
-  }
-
-  /// @inheritdoc IPoll
-  function mergeMaciStateAq(uint256 _pollId) public onlyOwner isAfterVotingDeadline {
+  function syncMaciStateTree(uint256 _pollId) public onlyOwner isAfterVotingDeadline {
     // This function can only be called once per Poll after the voting
     // deadline
-    if (stateAqMerged) revert StateAqAlreadyMerged();
+    if (stateTreeSynced) revert StateTreeAlreadySynced();
 
     // set merged to true so it cannot be called again
-    stateAqMerged = true;
+    stateTreeSynced = true;
 
-    // the subtrees must have been merged first
-    if (!extContracts.maci.stateAq().subTreesMerged()) revert StateAqSubtreesNeedMerge();
-
-    mergedStateRoot = extContracts.maci.mergeStateAq(_pollId);
+    mergedStateRoot = extContracts.maci.getStateTreeRoot();
 
     // Set currentSbCommitment
     uint256[3] memory sb;
@@ -252,7 +237,7 @@ contract Poll is Params, Utilities, SnarkCommon, Ownable, EmptyBallotRoots, IPol
     currentSbCommitment = hash3(sb);
 
     numSignups = extContracts.maci.numSignUps();
-    emit MergeMaciStateAq(mergedStateRoot, numSignups);
+    emit SyncMaciStateTree(mergedStateRoot, numSignups);
   }
 
   /// @inheritdoc IPoll

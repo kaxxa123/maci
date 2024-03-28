@@ -120,7 +120,7 @@ function signUp(
 }
 ```
 
-Once everything has been setup, polls can be deployed using the `deployPoll` function. It should be noted that currently, after the first poll is deployed, in order to deploy a new one, the state tree must have been merged (and this can be triggered by Poll contracts using `Poll.mergeMaciStateAqSubRoots` and `Poll.mergeMaciStateAq`)
+Once everything has been setup, polls can be deployed using the `deployPoll` function. It should be noted that currently, after the first poll is deployed, in order to deploy a new one, the state tree must have been merged (and this can be triggered by Poll contracts using `Poll.syncMaciStateTreeSubRoots` and `Poll.syncMaciStateTree`)
 
 ```javascript
 function deployPoll(
@@ -192,38 +192,16 @@ The main functions of the contract are as follows:
   Before saving the message, the function will check that the voting deadline has not passed, as well as the max number of messages was not reached.
 - `publisMessageBatch` - This function allows to submit a batch of messages, and it accepts an array of messages with their corresponding public keys used in the encryption step. It will call the `publishMessage` function for each message in the array.
 
-The `mergeMaciStateAqSubRoots` function can be called by the contract admin after the voting deadline and looks like the following:
+Now, coordinator's job is to sync the state tree data, using `syncMaciStateTree`:
 
 ```javascript
-function mergeMaciStateAqSubRoots(uint256 _numSrQueueOps, uint256 _pollId) public onlyOwner isAfterVotingDeadline {
-  // This function cannot be called after the stateAq was merged
-  if (stateAqMerged) revert StateAqAlreadyMerged();
-
-  // merge subroots
-  extContracts.maci.mergeStateAqSubRoots(_numSrQueueOps, _pollId);
-
-  emit MergeMaciStateAqSubRoots(_numSrQueueOps);
-}
-```
-
-If the subtrees have not been merged on the MACI contract's `stateAq`, then it will merge it by calling `mergeStateAqSubroots`. It accepts two parameters:
-
-- `_numSrQueueOps` - the number of operations required
-- `_pollId` - the id of the poll
-
-After merging the subroots, a coordinator's job is to merge the main state root, using `mergeMaciStateAq`:
-
-```javascript
-function mergeMaciStateAq(uint256 _pollId) public onlyOwner isAfterVotingDeadline {
+function syncMaciStateTree(uint256 _pollId) public onlyOwner isAfterVotingDeadline {
   // This function can only be called once per Poll after the voting
   // deadline
-  if (stateAqMerged) revert StateAqAlreadyMerged();
+  if (stateTreeSynced) revert StateAqAlreadyMerged();
 
   // set merged to true so it cannot be called again
-  stateAqMerged = true;
-
-  // the subtrees must have been merged first
-  if (!extContracts.maci.stateAq().subTreesMerged()) revert StateAqSubtreesNeedMerge();
+  stateTreeSynced = true;
 
   mergedStateRoot = extContracts.maci.mergeStateAq(_pollId);
 
@@ -236,7 +214,7 @@ function mergeMaciStateAq(uint256 _pollId) public onlyOwner isAfterVotingDeadlin
   currentSbCommitment = hash3(sb);
 
   numSignups = extContracts.maci.numSignUps();
-  emit MergeMaciStateAq(mergedStateRoot, numSignups);
+  emit SyncMaciStateTree(mergedStateRoot, numSignups);
 }
 ```
 

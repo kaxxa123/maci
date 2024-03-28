@@ -205,7 +205,7 @@ describe("Utils", () => {
     it("should return the path elements for the given index", () => {
       const leaves = [BigInt(1), BigInt(2), BigInt(3), BigInt(4), BigInt(5)];
       const depth = 3;
-      const proof = genTreeProof(2, leaves, depth);
+      const proof = genTreeProof(2, leaves, depth, 2);
       expect(proof.length).to.be.gt(0);
     });
   });

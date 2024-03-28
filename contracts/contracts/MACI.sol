@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: MIT
 pragma solidity ^0.8.10;
 
+import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
+
 import { IPollFactory } from "./interfaces/IPollFactory.sol";
 import { IMessageProcessorFactory } from "./interfaces/IMPFactory.sol";
 import { ITallyFactory } from "./interfaces/ITallyFactory.sol";
@@ -12,7 +14,7 @@ import { IMACI } from "./interfaces/IMACI.sol";
 import { Params } from "./utilities/Params.sol";
 import { TopupCredit } from "./TopupCredit.sol";
 import { Utilities } from "./utilities/Utilities.sol";
-import { Ownable } from "@openzeppelin/contracts/access/Ownable.sol";
+import { InternalLeanIMT, LeanIMTData } from "./trees/LeanIMT.sol";
 
 /// @title MACI - Minimum Anti-Collusion Infrastructure Version 1
 /// @notice A contract which allows users to sign up, and deploy new polls
@@ -20,13 +22,13 @@ contract MACI is IMACI, Params, Utilities, Ownable {
   /// @notice The state tree depth is fixed. As such it should be as large as feasible
   /// so that there can be as many users as possible.  i.e. 5 ** 10 = 9765625
   /// this should also match the parameter of the circom circuits.
-  uint8 public immutable stateTreeDepth;
-
-  /// @notice IMPORTANT: remember to change the ballot tree depth
+  /// IMPORTANT: remember to change the ballot tree depth
   /// in contracts/ts/genEmptyBallotRootsContract.ts file
   /// if we change the state tree depth!
-  uint8 internal constant STATE_TREE_SUBDEPTH = 2;
-  uint8 internal constant TREE_ARITY = 5;
+  uint8 public immutable stateTreeDepth;
+
+  uint8 internal constant TREE_ARITY = 2;
+  uint8 internal constant MESSAGE_TREE_ARITY = 5;
 
   /// @notice The hash of a blank state leaf
   uint256 internal constant BLANK_STATE_LEAF_HASH =
@@ -37,12 +39,6 @@ contract MACI is IMACI, Params, Utilities, Ownable {
 
   /// @notice A mapping of poll IDs to Poll contracts.
   mapping(uint256 => address) public polls;
-
-  /// @notice Whether the subtrees have been merged (can merge root before new signup)
-  bool public subtreesMerged;
-
-  /// @notice The number of signups
-  uint256 public numSignUps;
 
   /// @notice ERC20 contract that hold topup credits
   TopupCredit public immutable topupCredit;
@@ -56,9 +52,9 @@ contract MACI is IMACI, Params, Utilities, Ownable {
   /// @notice Factory contract that deploy a Tally contract
   ITallyFactory public immutable tallyFactory;
 
-  /// @notice The state AccQueue. Represents a mapping between each user's public key
-  /// and their voice credit balance.
-  AccQueue public immutable stateAq;
+  /// @notice The state tree. Represents a merkle tree structure where leaves
+  /// are the hash of the user balance, public key and signup timestamp
+  LeanIMTData public stateTree;
 
   /// @notice Address of the SignUpGatekeeper, a contract which determines whether a
   /// user may sign up to vote
@@ -67,6 +63,9 @@ contract MACI is IMACI, Params, Utilities, Ownable {
   /// @notice The contract which provides the values of the initial voice credit
   /// balance per user
   InitialVoiceCreditProxy public immutable initialVoiceCreditProxy;
+
+  /// @notice Store the latest root and the latest updated timestamp
+  mapping(uint256 => uint256) public stateAqRoots;
 
   /// @notice A struct holding the addresses of poll, mp and tally
   struct PollContracts {
@@ -83,6 +82,7 @@ contract MACI is IMACI, Params, Utilities, Ownable {
     uint256 _voiceCreditBalance,
     uint256 _timestamp
   );
+
   event DeployPoll(
     uint256 _pollId,
     uint256 indexed _coordinatorPubKeyX,
@@ -122,15 +122,11 @@ contract MACI is IMACI, Params, Utilities, Ownable {
     TopupCredit _topupCredit,
     uint8 _stateTreeDepth
   ) payable {
-    // Deploy the state AccQueue
-    stateAq = new AccQueueQuinaryBlankSl(STATE_TREE_SUBDEPTH);
-    stateAq.enqueue(BLANK_STATE_LEAF_HASH);
+    // add the blank state leaf to the state tree
+    InternalLeanIMT._insert(stateTree, BLANK_STATE_LEAF_HASH);
 
-    // because we add a blank leaf we need to count one signup
-    // so we don't allow max + 1
-    unchecked {
-      numSignUps++;
-    }
+    // store the root and the timestamp it was updated at
+    stateAqRoots[InternalLeanIMT._root(stateTree)] = block.timestamp;
 
     pollFactory = _pollFactory;
     messageProcessorFactory = _messageProcessorFactory;
@@ -161,21 +157,11 @@ contract MACI is IMACI, Params, Utilities, Ownable {
     bytes memory _signUpGatekeeperData,
     bytes memory _initialVoiceCreditProxyData
   ) public virtual {
-    // prevent new signups until we merge the roots (possible DoS)
-    if (subtreesMerged) revert SignupTemporaryBlocked();
-
     // ensure we do not have more signups than what the circuits support
-    if (numSignUps >= uint256(TREE_ARITY) ** uint256(stateTreeDepth)) revert TooManySignups();
+    if (stateTree.size >= uint256(TREE_ARITY) ** uint256(stateTreeDepth)) revert TooManySignups();
 
     if (_pubKey.x >= SNARK_SCALAR_FIELD || _pubKey.y >= SNARK_SCALAR_FIELD) {
       revert MaciPubKeyLargerThanSnarkFieldSize();
-    }
-
-    // Increment the number of signups
-    // cannot overflow with realistic STATE_TREE_DEPTH
-    // values as numSignUps < 5 ** STATE_TREE_DEPTH -1
-    unchecked {
-      numSignUps++;
     }
 
     // Register the user via the sign-up gatekeeper. This function should
@@ -186,11 +172,14 @@ contract MACI is IMACI, Params, Utilities, Ownable {
     uint256 voiceCreditBalance = initialVoiceCreditProxy.getVoiceCredits(msg.sender, _initialVoiceCreditProxyData);
 
     uint256 timestamp = block.timestamp;
-    // Create a state leaf and enqueue it.
+    // Create a state leaf and add it to the state tree.
     uint256 stateLeaf = hashStateLeaf(StateLeaf(_pubKey, voiceCreditBalance, timestamp));
-    uint256 stateIndex = stateAq.enqueue(stateLeaf);
+    InternalLeanIMT._insert(stateTree, stateLeaf);
 
-    emit SignUp(stateIndex, _pubKey.x, _pubKey.y, voiceCreditBalance, timestamp);
+    // store the root and the timestamp it was updated at
+    stateAqRoots[InternalLeanIMT._root(stateTree)] = timestamp;
+
+    emit SignUp(stateTree.size - 1, _pubKey.x, _pubKey.y, voiceCreditBalance, timestamp);
   }
 
   /// @notice Deploy a new Poll contract.
@@ -218,13 +207,9 @@ contract MACI is IMACI, Params, Utilities, Ownable {
       nextPollId++;
     }
 
-    if (pollId > 0) {
-      if (!stateAq.treeMerged()) revert PreviousPollNotCompleted(pollId);
-    }
-
     MaxValues memory maxValues = MaxValues({
-      maxMessages: uint256(TREE_ARITY) ** _treeDepths.messageTreeDepth,
-      maxVoteOptions: uint256(TREE_ARITY) ** _treeDepths.voteOptionTreeDepth
+      maxMessages: uint256(MESSAGE_TREE_ARITY) ** _treeDepths.messageTreeDepth,
+      maxVoteOptions: uint256(MESSAGE_TREE_ARITY) ** _treeDepths.voteOptionTreeDepth
     });
 
     address _owner = owner();
@@ -251,26 +236,13 @@ contract MACI is IMACI, Params, Utilities, Ownable {
   }
 
   /// @inheritdoc IMACI
-  function mergeStateAqSubRoots(uint256 _numSrQueueOps, uint256 _pollId) public onlyPoll(_pollId) {
-    stateAq.mergeSubRoots(_numSrQueueOps);
-
-    // if we have merged all subtrees then put a block
-    if (stateAq.subTreesMerged()) {
-      subtreesMerged = true;
-    }
+  function getStateTreeRoot() public view returns (uint256 root) {
+    root = InternalLeanIMT._root(stateTree);
   }
 
   /// @inheritdoc IMACI
-  function mergeStateAq(uint256 _pollId) public onlyPoll(_pollId) returns (uint256 root) {
-    // remove block
-    subtreesMerged = false;
-
-    root = stateAq.merge(stateTreeDepth);
-  }
-
-  /// @inheritdoc IMACI
-  function getStateAqRoot() public view returns (uint256 root) {
-    root = stateAq.getMainRoot(stateTreeDepth);
+  function numSignUps() public view returns (uint256 _numSignUps) {
+    _numSignUps = stateTree.size;
   }
 
   /// @notice Get the Poll details

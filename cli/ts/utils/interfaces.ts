@@ -6,7 +6,6 @@ import type { Groth16Proof, PublicSignals } from "snarkjs";
 
 export interface DeployedContracts {
   maciAddress: string;
-  stateAqAddress: string;
   pollFactoryAddress: string;
   topupCreditAddress: string;
   poseidonT3Address: string;
@@ -977,7 +976,7 @@ export interface IGetPollData {
   /**
    * Whether the MACI contract's stateAq has been merged by this contract
    */
-  isStateAqMerged: boolean;
+  isstateTreeSynced: boolean;
 }
 
 /**

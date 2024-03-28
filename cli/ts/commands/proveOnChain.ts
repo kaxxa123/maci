@@ -12,7 +12,7 @@ import {
   type IVerifyingKeyStruct,
   EMode,
 } from "maci-contracts";
-import { STATE_TREE_ARITY } from "maci-core";
+import { MESSAGE_TREE_ARITY, STATE_TREE_ARITY } from "maci-core";
 import { G1Point, G2Point, hashLeftRight } from "maci-crypto";
 import { VerifyingKey } from "maci-domainobjs";
 
@@ -146,7 +146,7 @@ export const proveOnChain = async ({
   const numSignUpsAndMessages = await pollContract.numSignUpsAndMessages();
   const numSignUps = Number(numSignUpsAndMessages[0]);
   const numMessages = Number(numSignUpsAndMessages[1]);
-  const messageBatchSize = STATE_TREE_ARITY ** Number(treeDepths.messageTreeSubDepth);
+  const messageBatchSize = MESSAGE_TREE_ARITY ** Number(treeDepths.messageTreeSubDepth);
   const tallyBatchSize = STATE_TREE_ARITY ** Number(treeDepths.intStateTreeDepth);
   let totalMessageBatches = numMessages <= messageBatchSize ? 1 : Math.floor(numMessages / messageBatchSize);
 

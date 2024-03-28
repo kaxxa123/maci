@@ -223,7 +223,7 @@ describe("Poll", function test() {
         0n,
         voiceCreditBalance,
         1n,
-        BigInt(pollId),
+        pollId,
       );
 
       const signature = command.sign(user1Keypair.privKey);

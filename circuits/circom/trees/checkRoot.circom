@@ -3,6 +3,56 @@ pragma circom 2.0.0;
 // local import
 include "../hasherPoseidon.circom";
 
+template BinaryCheckRoot(levels) {
+    var LEAVES_PER_NODE = 2;
+
+    // The total number of leaves
+    var totalLeaves = LEAVES_PER_NODE ** levels;
+
+    // The number of Hasher5 components which will be used to hash the
+    // leaves
+    var numLeafHashers = LEAVES_PER_NODE ** (levels - 1);
+
+    // Inputs to the snark
+    signal input leaves[totalLeaves];
+
+    // The output
+    signal output root;
+
+    var i;
+    var j;
+
+    // The total number of hashers
+    var numHashers = 0;
+    for (i = 0; i < levels; i++) {
+        numHashers += LEAVES_PER_NODE ** i;
+    }
+
+    component hashers[numHashers];
+
+    // Instantiate all hashers
+    for (i = 0; i < numHashers; i++) {
+        hashers[i] = HashLeftRight();
+    }
+
+    // Wire the leaf values into the leaf hashers
+    for (i = 0; i < numLeafHashers; i++){
+        hashers[i].left <== leaves[i * LEAVES_PER_NODE];
+        hashers[i].right <== leaves[i * LEAVES_PER_NODE + 1];
+    }
+
+    // Wire the outputs of the leaf hashers to the intermediate hasher inputs
+    var k = 0;
+    for (i = numLeafHashers; i < numHashers; i++) {
+        hashers[i].left <== hashers[k * LEAVES_PER_NODE].hash;
+        hashers[i].right <== hashers[k * LEAVES_PER_NODE + 1].hash;
+        k++;
+    }
+
+    // Wire the output of the final hash to this circuit's output
+    root <== hashers[numHashers-1].hash;
+}
+
 // Given a list of leaves, compute the root of the merkle tree
 // by inserting all the leaves into the tree in the given
 // order.

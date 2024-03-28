@@ -100,7 +100,7 @@ As an example, let's try to implement a test given the following criteria:
 ```json
 {
   "name": "10 Users test",
-  "description": "Should signup 10 users, submit 10 votes and tally the results",
+  "description": "should signup 10 users, submit 10 votes and tally the results",
   "numUsers": 10,
   "numVotesPerUser": 1,
   "votes": {

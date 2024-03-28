@@ -156,7 +156,7 @@ export const genProofs = async ({
   const messageAqContract = AccQueueFactory.connect(messageAqContractAddr, signer);
 
   // Check that the state and message trees have been merged for at least the first poll
-  if (!(await pollContract.stateAqMerged()) && pollId.toString() === "0") {
+  if (!(await pollContract.stateTreeSynced()) && pollId.toString() === "0") {
     logError("The state tree has not been merged yet. Please use the mergeSignups subcommmand to do so.");
   }
 
@@ -189,7 +189,7 @@ export const genProofs = async ({
       maciContract
         .queryFilter(maciContract.filters.DeployPoll(), startBlock)
         .then((events) => events[0]?.blockNumber ?? 0),
-      maciContract.getStateAqRoot(),
+      maciContract.getStateTreeRoot(),
       maciContract.numSignUps(),
       messageAqContract.getMainRoot(messageTreeDepth),
     ]);
@@ -201,7 +201,7 @@ export const genProofs = async ({
         .queryFilter(pollContract.filters.MergeMessageAq(messageRoot), fromBlock)
         .then((events) => events[events.length - 1]?.blockNumber),
       pollContract
-        .queryFilter(pollContract.filters.MergeMaciStateAq(stateRoot, numSignups), fromBlock)
+        .queryFilter(pollContract.filters.SyncMaciStateTree(stateRoot, numSignups), fromBlock)
         .then((events) => events[events.length - 1]?.blockNumber),
     ]).then((blocks) => Math.max(...blocks));
 

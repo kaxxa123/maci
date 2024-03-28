@@ -7,6 +7,48 @@ include "./mux1.circom";
 
 // local import
 include "../hasherPoseidon.circom";
+include "./calculateTotal.circom";
+
+// Given a tree index, generate the indices which MerkleTreeInclusionProof and
+// QuinLeafExists require. e.g. if the index is 30 and the number of levels is
+// 4, the output should be [0, 1, 1, 0]
+template MerkleGeneratePathIndices(levels) {
+    var BASE = 2;
+    signal input in; 
+    signal output out[levels];
+
+    var m = in;
+    signal n[levels + 1];
+    for (var i = 0; i < levels; i++) {
+        // circom's best practices state that we should avoid using <-- unless
+        // we know what we are doing. But this is the only way to perform the
+        // modulo operation.
+
+        n[i] <-- m;
+        
+        out[i] <-- m % BASE;
+
+        m = m \ BASE;
+    }
+
+    n[levels] <-- m;
+
+    component leq[levels];
+    component sum = CalculateTotal(levels);
+    for (var i = 0; i < levels; i++) {
+        // Check that each output element is less than the base
+        leq[i] = SafeLessThan(3);
+        leq[i].in[0] <== out[i];
+        leq[i].in[1] <== BASE;
+        leq[i].out === 1;
+
+        // Re-compute the total sum
+        sum.nums[i] <== out[i] * (BASE ** i);
+    }
+    
+    // Check that the total sum matches the index
+    sum.sum === in;
+}
 
 // recompute a merkle root from a leaf and a path
 template MerkleTreeInclusionProof(n_levels) {

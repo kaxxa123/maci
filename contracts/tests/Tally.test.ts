@@ -178,8 +178,7 @@ describe("TallyVotes", () => {
   describe("after merging acc queues", () => {
     let tallyGeneratedInputs: ITallyCircuitInputs;
     before(async () => {
-      await pollContract.mergeMaciStateAqSubRoots(0, pollId);
-      await pollContract.mergeMaciStateAq(0);
+      await pollContract.syncMaciStateTree(0);
 
       await pollContract.mergeMessageAqSubRoots(0);
       await pollContract.mergeMessageAq();
@@ -215,8 +214,8 @@ describe("TallyVotes", () => {
 
   describe("ballots === tallyBatchSize", () => {
     before(async () => {
-      // create 24 users (total 25 - 24 + 1 nothing up my sleeve)
-      users = Array.from({ length: 24 }, () => new Keypair());
+      // create 3 users (total 4 - 3 + 1 nothing up my sleeve)
+      users = Array.from({ length: 3 }, () => new Keypair());
       maciState = new MaciState(STATE_TREE_DEPTH);
 
       const updatedDuration = 5000000;
@@ -333,8 +332,7 @@ describe("TallyVotes", () => {
       );
 
       await timeTravel(signer.provider! as unknown as EthereumProvider, updatedDuration);
-      await pollContract.mergeMaciStateAqSubRoots(0, pollId);
-      await pollContract.mergeMaciStateAq(0);
+      await pollContract.syncMaciStateTree(0);
 
       await pollContract.mergeMessageAqSubRoots(0);
       await pollContract.mergeMessageAq();
@@ -349,6 +347,7 @@ describe("TallyVotes", () => {
 
       const onChainNewTallyCommitment = await tallyContract.tallyCommitment();
       expect(tallyGeneratedInputs.newTallyCommitment).to.eq(onChainNewTallyCommitment.toString());
+
       await expect(
         tallyContract.tallyVotes(tallyGeneratedInputs.newTallyCommitment, [0, 0, 0, 0, 0, 0, 0, 0]),
       ).to.be.revertedWithCustomError(tallyContract, "AllBallotsTallied");
@@ -357,8 +356,8 @@ describe("TallyVotes", () => {
 
   describe("ballots > tallyBatchSize", () => {
     before(async () => {
-      // create 25 users (and thus 26 ballots) (total 26 - 25 + 1 nothing up my sleeve)
-      users = Array.from({ length: 25 }, () => new Keypair());
+      // create 4 users (and thus 5 ballots) (total 5 - 4 + 1 nothing up my sleeve)
+      users = Array.from({ length: 4 }, () => new Keypair());
       maciState = new MaciState(STATE_TREE_DEPTH);
 
       const updatedDuration = 5000000;
@@ -475,8 +474,7 @@ describe("TallyVotes", () => {
       );
 
       await timeTravel(signer.provider! as unknown as EthereumProvider, updatedDuration);
-      await pollContract.mergeMaciStateAqSubRoots(0, pollId);
-      await pollContract.mergeMaciStateAq(0);
+      await pollContract.syncMaciStateTree(0);
 
       await pollContract.mergeMessageAqSubRoots(0);
       await pollContract.mergeMessageAq();

@@ -9,6 +9,8 @@ import {
   sha256Hash,
   stringifyBigInts,
   genTreeCommitment,
+  hash2,
+  LeanIMTMACI,
 } from "maci-crypto";
 import {
   PCommand,
@@ -25,7 +27,6 @@ import {
   type IJsonCommand,
   type IJsonPCommand,
   type IJsonTCommand,
-  blankStateLeafHash,
 } from "maci-domainobjs";
 
 import assert from "assert";
@@ -44,7 +45,7 @@ import type {
 } from "./utils/types";
 import type { PathElements } from "maci-crypto";
 
-import { STATE_TREE_ARITY, MESSAGE_TREE_ARITY } from "./utils/constants";
+import { MESSAGE_TREE_ARITY } from "./utils/constants";
 import { ProcessMessageErrors, ProcessMessageError } from "./utils/errors";
 import { packTallyVotesSmallVals } from "./utils/utils";
 
@@ -83,7 +84,7 @@ export class Poll implements IPoll {
 
   stateLeaves: StateLeaf[] = [blankStateLeaf];
 
-  stateTree?: IncrementalQuinTree;
+  stateTree?: LeanIMTMACI;
 
   // For message processing
   numBatchesProcessed = 0;
@@ -115,7 +116,7 @@ export class Poll implements IPoll {
   // ballot tree
   emptyBallot: Ballot;
 
-  emptyBallotHash?: bigint;
+  emptyBallotHash: bigint;
 
   // how many users signed up
   private numSignups = 0n;
@@ -158,6 +159,8 @@ export class Poll implements IPoll {
 
     // we put a blank state leaf to prevent a DoS attack
     this.emptyBallot = Ballot.genBlankBallot(this.maxValues.maxVoteOptions, treeDepths.voteOptionTreeDepth);
+    this.emptyBallotHash = this.emptyBallot.hash();
+
     this.ballots.push(this.emptyBallot);
   }
 
@@ -177,20 +180,22 @@ export class Poll implements IPoll {
 
     // start by setting the number of signups
     this.setNumSignups(numSignups);
+
+    // set the state tree depth
+    this.stateTreeDepth = this.maciStateRef.stateTreeDepth;
+
     // copy up to numSignups state leaves
     this.stateLeaves = this.maciStateRef.stateLeaves.slice(0, Number(this.numSignups)).map((x) => x.copy());
 
     // create a new state tree
-    this.stateTree = new IncrementalQuinTree(this.stateTreeDepth, blankStateLeafHash, STATE_TREE_ARITY, hash5);
-    // add all leaves
-    this.stateLeaves.forEach((stateLeaf) => {
-      this.stateTree?.insert(stateLeaf.hash());
-    });
+    this.stateTree = new LeanIMTMACI(
+      hash2,
+      this.stateLeaves.map((x) => x.hash()),
+    );
 
     // Create as many ballots as state leaves
-    this.emptyBallotHash = this.emptyBallot.hash();
-    this.ballotTree = new IncrementalQuinTree(this.stateTreeDepth, this.emptyBallotHash, STATE_TREE_ARITY, hash5);
-    this.ballotTree.insert(this.emptyBallot.hash());
+    this.ballotTree = new IncrementalQuinTree(this.stateTreeDepth, this.emptyBallotHash, 2, hash2);
+    this.ballotTree.insert(this.emptyBallotHash);
 
     // we fill the ballotTree with empty ballots hashes to match the number of signups in the tree
     while (this.ballots.length < this.stateLeaves.length) {
@@ -220,7 +225,7 @@ export class Poll implements IPoll {
       if (
         stateLeafIndex >= BigInt(this.ballots.length) ||
         stateLeafIndex < 1n ||
-        stateLeafIndex >= BigInt(this.stateTree?.nextIndex || -1)
+        stateLeafIndex >= BigInt(this.stateTree?.size || -1)
       ) {
         throw new ProcessMessageError(ProcessMessageErrors.InvalidStateLeafIndex);
       }
@@ -285,13 +290,16 @@ export class Poll implements IPoll {
       // calculate the path elements for the state tree given the original state tree (before any changes)
       // changes could effectively be made by this new vote - either a key change or vote change
       // would result in a different state leaf
-      const originalStateLeafPathElements = this.stateTree?.genProof(Number(stateLeafIndex)).pathElements;
+      const originalStateLeafPathElements = this.stateTree?.genProof(
+        Number(stateLeafIndex),
+        this.stateTreeDepth,
+      ).pathElements;
       // calculate the path elements for the ballot tree given the original ballot tree (before any changes)
       // changes could effectively be made by this new ballot
       const originalBallotPathElements = this.ballotTree?.genProof(Number(stateLeafIndex)).pathElements;
 
       // create a new quinary tree where we insert the votes of the origin (up until this message is processed) ballot
-      const vt = new IncrementalQuinTree(this.treeDepths.voteOptionTreeDepth, 0n, STATE_TREE_ARITY, hash5);
+      const vt = new IncrementalQuinTree(this.treeDepths.voteOptionTreeDepth, 0n, MESSAGE_TREE_ARITY, hash5);
       for (let i = 0; i < this.ballots[0].votes.length; i += 1) {
         vt.insert(ballot.votes[i]);
       }
@@ -479,7 +487,7 @@ export class Poll implements IPoll {
     // we want to store the state leaves at this point in time
     // and the path elements of the state tree
     const currentStateLeaves: StateLeaf[] = [];
-    const currentStateLeavesPathElements: PathElements[] = [];
+    const currentStateLeavesPathElements: PathElements = [];
 
     // we want to store the ballots at this point in time
     // and the path elements of the ballot tree
@@ -559,7 +567,9 @@ export class Poll implements IPoll {
                 // if the state leaf index is valid then use it
                 if (stateLeafIndex < this.stateLeaves.length) {
                   currentStateLeaves.unshift(this.stateLeaves[Number(stateLeafIndex)].copy());
-                  currentStateLeavesPathElements.unshift(this.stateTree!.genProof(Number(stateLeafIndex)).pathElements);
+                  currentStateLeavesPathElements.unshift(
+                    this.stateTree!.genProof(Number(stateLeafIndex), this.stateTreeDepth).pathElements,
+                  );
 
                   // copy the ballot
                   const ballot = this.ballots[Number(stateLeafIndex)].copy();
@@ -574,12 +584,7 @@ export class Poll implements IPoll {
                     currentVoteWeights.unshift(ballot.votes[Number(command.voteOptionIndex)]);
 
                     // create a new quinary tree and add all votes we have so far
-                    const vt = new IncrementalQuinTree(
-                      this.treeDepths.voteOptionTreeDepth,
-                      0n,
-                      STATE_TREE_ARITY,
-                      hash5,
-                    );
+                    const vt = new IncrementalQuinTree(this.treeDepths.voteOptionTreeDepth, 0n, 5, hash5);
 
                     // fill the vote option tree with the votes we have so far
                     for (let j = 0; j < this.ballots[0].votes.length; j += 1) {
@@ -592,12 +597,7 @@ export class Poll implements IPoll {
                     currentVoteWeights.unshift(ballot.votes[0]);
 
                     // create a new quinary tree and add all votes we have so far
-                    const vt = new IncrementalQuinTree(
-                      this.treeDepths.voteOptionTreeDepth,
-                      0n,
-                      STATE_TREE_ARITY,
-                      hash5,
-                    );
+                    const vt = new IncrementalQuinTree(this.treeDepths.voteOptionTreeDepth, 0n, 5, hash5);
 
                     // fill the vote option tree with the votes we have so far
                     for (let j = 0; j < this.ballots[0].votes.length; j += 1) {
@@ -610,7 +610,7 @@ export class Poll implements IPoll {
                 } else {
                   // just use state leaf index 0
                   currentStateLeaves.unshift(this.stateLeaves[0].copy());
-                  currentStateLeavesPathElements.unshift(this.stateTree!.genProof(0).pathElements);
+                  currentStateLeavesPathElements.unshift(this.stateTree!.genProof(0, this.stateTreeDepth).pathElements);
                   currentBallots.unshift(this.ballots[0].copy());
                   currentBallotsPathElements.unshift(this.ballotTree!.genProof(0).pathElements);
 
@@ -618,7 +618,12 @@ export class Poll implements IPoll {
                   currentVoteWeights.unshift(this.ballots[0].votes[0]);
 
                   // create a new quinary tree and add an empty vote
-                  const vt = new IncrementalQuinTree(this.treeDepths.voteOptionTreeDepth, 0n, STATE_TREE_ARITY, hash5);
+                  const vt = new IncrementalQuinTree(
+                    this.treeDepths.voteOptionTreeDepth,
+                    0n,
+                    MESSAGE_TREE_ARITY,
+                    hash5,
+                  );
                   vt.insert(this.ballots[0].votes[0]);
                   // get the path elements for this empty vote weight leaf
                   currentVoteWeightsPathElements.unshift(vt.genProof(0).pathElements);
@@ -636,7 +641,9 @@ export class Poll implements IPoll {
               const amount = message.data[0] >= BigInt(this.ballots.length) ? 0n : message.data[1];
 
               currentStateLeaves.unshift(this.stateLeaves[stateIndex].copy());
-              currentStateLeavesPathElements.unshift(this.stateTree!.genProof(stateIndex).pathElements);
+              currentStateLeavesPathElements.unshift(
+                this.stateTree!.genProof(stateIndex, this.stateTreeDepth).pathElements,
+              );
 
               // create a copy of the state leaf
               const newStateLeaf = this.stateLeaves[stateIndex].copy();
@@ -662,7 +669,7 @@ export class Poll implements IPoll {
               currentVoteWeights.unshift(currentBallot.votes[0]);
 
               // create a quinary tree to fill with the votes of the current ballot
-              const vt = new IncrementalQuinTree(this.treeDepths.voteOptionTreeDepth, 0n, STATE_TREE_ARITY, hash5);
+              const vt = new IncrementalQuinTree(this.treeDepths.voteOptionTreeDepth, 0n, MESSAGE_TREE_ARITY, hash5);
 
               for (let j = 0; j < this.ballots[0].votes.length; j += 1) {
                 vt.insert(currentBallot.votes[j]);
@@ -684,8 +691,8 @@ export class Poll implements IPoll {
       } else {
         // Since we don't have a command at that position, use a blank state leaf
         currentStateLeaves.unshift(this.stateLeaves[0].copy());
-        currentStateLeavesPathElements.unshift(this.stateTree!.genProof(0).pathElements);
-        // since the command is invliad we use the blank ballot
+        currentStateLeavesPathElements.unshift(this.stateTree!.genProof(0, this.stateTreeDepth).pathElements);
+        // since the command is invalid we use the blank ballot
         currentBallots.unshift(this.ballots[0].copy());
         currentBallotsPathElements.unshift(this.ballotTree!.genProof(0).pathElements);
 
@@ -693,7 +700,7 @@ export class Poll implements IPoll {
         currentVoteWeights.unshift(this.ballots[0].votes[0]);
 
         // create a new quinary tree and add an empty vote
-        const vt = new IncrementalQuinTree(this.treeDepths.voteOptionTreeDepth, 0n, STATE_TREE_ARITY, hash5);
+        const vt = new IncrementalQuinTree(this.treeDepths.voteOptionTreeDepth, 0n, MESSAGE_TREE_ARITY, hash5);
         vt.insert(this.ballots[0].votes[0]);
 
         // get the path elements for this empty vote weight leaf
@@ -800,9 +807,6 @@ export class Poll implements IPoll {
     // generate the path to the subroot of the message tree for this batch
     const messageSubrootPath = this.messageTree.genSubrootProof(index, index + messageBatchSize);
 
-    // verify it
-    assert(this.messageTree.verifyProof(messageSubrootPath), "The message subroot path is invalid");
-
     // validate that the batch index is correct, if not fix it
     // this means that the end will be the last message
     let batchEndIndex = index + messageBatchSize;
@@ -823,6 +827,7 @@ export class Poll implements IPoll {
     const msgRoot = this.messageTree.root;
     const currentStateRoot = this.stateTree!.root;
     const currentBallotRoot = this.ballotTree!.root;
+
     // calculate the current state and ballot root
     // commitment which is the hash of the state tree
     // root, the ballot tree root and a salt
@@ -1288,7 +1293,7 @@ export class Poll implements IPoll {
     copied.encPubKeys = this.encPubKeys.map((x) => x.copy());
 
     if (this.ballotTree) {
-      copied.ballotTree = this.ballotTree.copy();
+      copied.ballotTree = this.ballotTree;
     }
 
     copied.currentMessageBatchIndex = this.currentMessageBatchIndex;

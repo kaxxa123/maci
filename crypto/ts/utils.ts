@@ -1,4 +1,4 @@
-import { hash5, hashLeftRight } from "./hashing";
+import { hash2, hash5, hashLeftRight } from "./hashing";
 import { IncrementalQuinTree } from "./quinTree";
 
 /**
@@ -42,10 +42,11 @@ export const genTreeCommitment = (leaves: bigint[], salt: bigint, depth: number)
  * @param index The index of the value to generate the proof for
  * @param leaves A list of values
  * @param depth The tree depth
+ * @param arity The tree arity
  * @returns The proof
  */
-export const genTreeProof = (index: number, leaves: bigint[], depth: number): bigint[][] => {
-  const tree = new IncrementalQuinTree(depth, 0n, 5, hash5);
+export const genTreeProof = (index: number, leaves: bigint[], depth: number, arity: number): bigint[][] => {
+  const tree = new IncrementalQuinTree(depth, 0n, arity === 5 ? 5 : 2, arity === 5 ? hash5 : hash2);
   leaves.forEach((leaf) => {
     tree.insert(leaf);
   });

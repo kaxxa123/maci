@@ -232,7 +232,7 @@ Example output:
 ```
 [i] Merging state subroots 1 / 1
 [i] Transaction hash: 0xd7e7312f70831ec05bb23f23f506ef37d6ce0c2056c1b72f7bb989653d1c8a42
-[✓] Executed mergeMaciStateAqSubRoots(); gas used: 720061
+[✓] Executed syncMaciStateTreeSubRoots(); gas used: 720061
 [✓] All state subtrees have been merged.
 [i] Merging subroots to a main state root...
 [i] Transaction hash: 0xb5e98d328b066d91e1b7aa35775fe624be446b540a00bcb4b27a02477636b569
@@ -598,7 +598,7 @@ Output:
 ```bash
 [i] Merging state subroots 1 / 1
 [i] Transaction hash: 0xd01932e8dfad251f9b0d288290ac17f12bc449ea859a6921f63edf6b4b06f4c9
-[✓] Executed mergeMaciStateAqSubRoots(); gas used: 720061
+[✓] Executed syncMaciStateTreeSubRoots(); gas used: 720061
 [✓] All state subtrees have been merged.
 [i] Merging subroots to a main state root...
 [i] Transaction hash: 0x25f60a9b5a24d11b87c41d8a4f681e3fd895b3bdf78ea86755b9800005662ce6

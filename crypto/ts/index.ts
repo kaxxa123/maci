@@ -4,6 +4,8 @@ export { calcDepthFromNumLeaves, genTreeCommitment, genTreeProof } from "./utils
 
 export { IncrementalQuinTree } from "./quinTree";
 
+export { LeanIMT as LeanIMTMACI } from "./leanIMT";
+
 export { bigInt2Buffer, stringifyBigInts, unstringifyBigInts, deepCopyBigIntArray } from "./bigIntUtils";
 
 export { NOTHING_UP_MY_SLEEVE, SNARK_FIELD_SIZE } from "./constants";

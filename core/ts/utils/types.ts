@@ -134,7 +134,7 @@ export interface IProcessMessagesOutput {
   stateLeafIndex?: number;
   newStateLeaf?: StateLeaf;
   originalStateLeaf?: StateLeaf;
-  originalStateLeafPathElements?: PathElements;
+  originalStateLeafPathElements?: bigint[];
   originalVoteWeight?: bigint;
   originalVoteWeightsPathElements?: PathElements;
   newBallot?: Ballot;
@@ -160,7 +160,7 @@ export interface IProcessMessagesCircuitInputs {
   currentSbCommitment: string;
   currentSbSalt: string;
   currentStateLeaves: string[];
-  currentStateLeavesPathElements: string[][];
+  currentStateLeavesPathElements: string[];
   currentBallots: string[];
   currentBallotsPathElements: string[][];
   currentVoteWeights: string[];

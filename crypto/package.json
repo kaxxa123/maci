@@ -18,6 +18,7 @@
     "test:accQueue": "ts-mocha --exit ts/__tests__/AccQueue.test.ts",
     "test:utils": "ts-mocha --exit ts/__tests__/Utils.test.ts",
     "test:imt": "ts-mocha --exit ts/__tests__/IMT.test.ts",
+    "test:leanImt": "ts-mocha --exit ts/__tests__/LeanIMTMaci.test.ts",
     "docs": "typedoc --plugin typedoc-plugin-markdown --options ./typedoc.json"
   },
   "dependencies": {

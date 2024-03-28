@@ -1,4 +1,4 @@
-import { IncrementalQuinTree, hash5 } from "maci-crypto";
+import { IncrementalQuinTree, hash2 } from "maci-crypto";
 import { Ballot } from "maci-domainobjs";
 
 import fs from "fs";
@@ -17,7 +17,7 @@ const genEmptyBallotRootsContract = (): string => {
     const ballot = new Ballot(0, i);
     const z = ballot.hash();
     // The empty Ballot tree root
-    const ballotTree = new IncrementalQuinTree(stateTreeDepth, BigInt(z.toString()), 5, hash5);
+    const ballotTree = new IncrementalQuinTree(stateTreeDepth, BigInt(z.toString()), 2, hash2);
 
     r += `    emptyBallotRoots[${i - 1}] = uint256(${ballotTree.root});${i !== 5 ? "\n" : ""}`;
   }

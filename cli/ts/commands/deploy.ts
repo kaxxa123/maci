@@ -82,7 +82,7 @@ export const deploy = async ({
   ]);
 
   // deploy MACI, stateAq, PollFactory and poseidon
-  const { maciContract, stateAqContract, pollFactoryContract, poseidonAddrs } = await deployMaci({
+  const { maciContract, pollFactoryContract, poseidonAddrs } = await deployMaci({
     signUpTokenGatekeeperContractAddress: signupGatekeeperContractAddress,
     initialVoiceCreditBalanceAddress: initialVoiceCreditProxyContractAddress,
     topupCreditContractAddress: topUpCreditAddress,
@@ -97,9 +97,8 @@ export const deploy = async ({
     quiet: true,
   });
 
-  const [maciContractAddress, stateAqContractAddress, pollFactoryContractAddress] = await Promise.all([
+  const [maciContractAddress, pollFactoryContractAddress] = await Promise.all([
     maciContract.getAddress(),
-    stateAqContract.getAddress(),
     pollFactoryContract.getAddress(),
   ]);
 
@@ -108,7 +107,6 @@ export const deploy = async ({
   storeContractAddress("SignUpGatekeeper", signupGatekeeperContractAddress, network?.name);
   storeContractAddress("Verifier", verifierContractAddress, network?.name);
   storeContractAddress("MACI", maciContractAddress, network?.name);
-  storeContractAddress("StateAq", stateAqContractAddress, network?.name);
   storeContractAddress("PollFactory", pollFactoryContractAddress, network?.name);
   storeContractAddress("TopupCredit", topUpCreditAddress, network?.name);
   storeContractAddress("PoseidonT3", poseidonAddrs.poseidonT3, network?.name);
@@ -121,7 +119,6 @@ export const deploy = async ({
   // return all addresses
   return {
     maciAddress: maciContractAddress,
-    stateAqAddress: stateAqContractAddress,
     pollFactoryAddress: pollFactoryContractAddress,
     verifierAddress: verifierContractAddress,
     topupCreditAddress: topUpCreditAddress,

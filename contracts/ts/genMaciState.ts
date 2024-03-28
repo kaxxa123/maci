@@ -1,6 +1,6 @@
 /* eslint-disable no-underscore-dangle */
 import { type Provider, type Log, Interface, BaseContract } from "ethers";
-import { MaciState, STATE_TREE_ARITY } from "maci-core";
+import { MaciState, STATE_TREE_ARITY, MESSAGE_TREE_ARITY } from "maci-core";
 import { type Keypair, PubKey, Message } from "maci-domainobjs";
 
 import assert from "assert";
@@ -174,14 +174,13 @@ export const genMaciStateFromContract = async (
   };
   const batchSizes = {
     tallyBatchSize: STATE_TREE_ARITY ** Number(onChainTreeDepths.intStateTreeDepth),
-    messageBatchSize: STATE_TREE_ARITY ** Number(onChainTreeDepths.messageTreeSubDepth),
+    messageBatchSize: MESSAGE_TREE_ARITY ** Number(onChainTreeDepths.messageTreeSubDepth),
   };
 
   // fetch poll contract logs
   let publishMessageLogs: Log[] = [];
   let topupLogs: Log[] = [];
-  let mergeMaciStateAqSubRootsLogs: Log[] = [];
-  let mergeMaciStateAqLogs: Log[] = [];
+  let syncMaciStateTreeLogs: Log[] = [];
   let mergeMessageAqSubRootsLogs: Log[] = [];
   let mergeMessageAqLogs: Log[] = [];
 
@@ -191,24 +190,21 @@ export const genMaciStateFromContract = async (
     const [
       tmpPublishMessageLogs,
       tmpTopupLogs,
-      tmpMergeMaciStateAqSubRootsLogs,
-      tmpMergeMaciStateAqLogs,
+      tmpsyncMaciStateTreeLogs,
       tmpMergeMessageAqSubRootsLogs,
       tmpMergeMessageAqLogs,
       // eslint-disable-next-line no-await-in-loop
     ] = await Promise.all([
       pollContract.queryFilter(pollContract.filters.PublishMessage(), i, toBlock),
       pollContract.queryFilter(pollContract.filters.TopupMessage(), i, toBlock),
-      pollContract.queryFilter(pollContract.filters.MergeMaciStateAqSubRoots(), i, toBlock),
-      pollContract.queryFilter(pollContract.filters.MergeMaciStateAq(), i, toBlock),
+      pollContract.queryFilter(pollContract.filters.SyncMaciStateTree(), i, toBlock),
       pollContract.queryFilter(pollContract.filters.MergeMessageAqSubRoots(), i, toBlock),
       pollContract.queryFilter(pollContract.filters.MergeMessageAq(), i, toBlock),
     ]);
 
     publishMessageLogs = publishMessageLogs.concat(tmpPublishMessageLogs);
     topupLogs = topupLogs.concat(tmpTopupLogs);
-    mergeMaciStateAqSubRootsLogs = mergeMaciStateAqSubRootsLogs.concat(tmpMergeMaciStateAqSubRootsLogs);
-    mergeMaciStateAqLogs = mergeMaciStateAqLogs.concat(tmpMergeMaciStateAqLogs);
+    syncMaciStateTreeLogs = syncMaciStateTreeLogs.concat(tmpsyncMaciStateTreeLogs);
     mergeMessageAqSubRootsLogs = mergeMessageAqSubRootsLogs.concat(tmpMergeMessageAqSubRootsLogs);
     mergeMessageAqLogs = mergeMessageAqLogs.concat(tmpMergeMessageAqLogs);
 
