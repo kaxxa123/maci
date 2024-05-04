@@ -21,7 +21,7 @@ import {
 import { timeTravel, deployTestContracts } from "./utils";
 
 describe("MACI", function test() {
-  this.timeout(90000);
+  this.timeout(9000000);
 
   let maciContract: MACI;
   let vkRegistryContract: VkRegistry;
@@ -188,8 +188,8 @@ describe("MACI", function test() {
       ).to.be.revertedWithCustomError(maciContract, "TooManySignups");
     });
 
-    it("should signup 2 ** 10 users", async () => {
-      const stateTreeDepthTest = 10;
+    it("should signup 2 ** 12 users", async () => {
+      const stateTreeDepthTest = 12;
       const maxUsers = 2 ** stateTreeDepthTest;
       const { maciContract: maci } = await deployTestContracts(
         initialVoiceCreditBalance,

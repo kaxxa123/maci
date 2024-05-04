@@ -19,14 +19,13 @@ import { InternalLazyIMT, LazyIMTData } from "./trees/LazyIMT.sol";
 /// @notice A contract which allows users to sign up, and deploy new polls
 contract MACI is IMACI, DomainObjs, Params, Utilities, Ownable(msg.sender) {
   /// @notice The state tree depth is fixed. As such it should be as large as feasible
-  /// so that there can be as many users as possible.  i.e. 5 ** 10 = 9765625
+  /// so that there can be as many users as possible.  i.e. 2 ** 23 = 8388608
   /// this should also match the parameter of the circom circuits.
-  uint8 public immutable stateTreeDepth;
-
   /// @notice IMPORTANT: remember to change the ballot tree depth
   /// in contracts/ts/genEmptyBallotRootsContract.ts file
   /// if we change the state tree depth!
-  uint8 internal constant STATE_TREE_SUBDEPTH = 2;
+  uint8 public immutable stateTreeDepth;
+
   uint8 internal constant TREE_ARITY = 2;
   uint8 internal constant MESSAGE_TREE_ARITY = 5;
 
@@ -36,6 +35,10 @@ contract MACI is IMACI, DomainObjs, Params, Utilities, Ownable(msg.sender) {
 
   /// @notice Each poll has an incrementing ID
   uint256 public nextPollId;
+
+  /// @notice an array containing the roots of the state tree
+  /// to be used by users for proof of inclusions
+  uint256[] public roots;
 
   /// @notice A mapping of poll IDs to Poll contracts.
   mapping(uint256 => address) public polls;
@@ -120,6 +123,7 @@ contract MACI is IMACI, DomainObjs, Params, Utilities, Ownable(msg.sender) {
   ) payable {
     // initialize and insert the blank leaf
     InternalLazyIMT._init(lazyIMTData, _stateTreeDepth);
+    // storing the root is not important so we just add a leaf
     InternalLazyIMT._insert(lazyIMTData, BLANK_STATE_LEAF_HASH);
 
     pollFactory = _pollFactory;
@@ -170,7 +174,9 @@ contract MACI is IMACI, DomainObjs, Params, Utilities, Ownable(msg.sender) {
 
     // Create a state leaf and insert it into the tree.
     uint256 stateLeaf = hashStateLeaf(StateLeaf(_pubKey, voiceCreditBalance, timestamp));
-    InternalLazyIMT._insert(lazyIMTData, stateLeaf);
+
+    // store the root
+    roots.push(InternalLazyIMT._insertAndUpdateRoot(lazyIMTData, stateLeaf));
 
     emit SignUp(lazyIMTData.numberOfLeaves - 1, _pubKey.x, _pubKey.y, voiceCreditBalance, timestamp);
   }
@@ -235,7 +241,8 @@ contract MACI is IMACI, DomainObjs, Params, Utilities, Ownable(msg.sender) {
 
   /// @inheritdoc IMACI
   function getStateTreeRoot() public view returns (uint256 root) {
-    root = InternalLazyIMT._root(lazyIMTData);
+    // return the last root
+    root = roots[roots.length - 1];
   }
 
   /// @notice Get the Poll details

@@ -177,6 +177,53 @@ library InternalLazyIMT {
     return levels[depth];
   }
 
+  /// @notice Insert a leaf and return the new root
+  /// @param self The LazyIMTData
+  /// @param leaf The leaf to insert
+  /// @return The new root of the LazyIMT
+  function _insertAndUpdateRoot(LazyIMTData storage self, uint256 leaf) internal returns (uint256) {
+    uint40 index = self.numberOfLeaves;
+    self.numberOfLeaves = index + 1;
+
+    uint256 hash = leaf;
+    uint256[] memory path = new uint256[](MAX_DEPTH + 1);
+    uint8 depth = 0;
+
+    // Calculate the path from the leaf to the root
+    for (uint8 i = 0; ; ) {
+      self.elements[_indexForElement(i, index)] = hash;
+      // it's a left element so we don't hash until there's a right element
+      if (index & 1 == 0) break;
+      uint40 elementIndex = _indexForElement(i, index - 1);
+      hash = PoseidonT3.poseidon([self.elements[elementIndex], hash]);
+      unchecked {
+        index >>= 1;
+        i++;
+      }
+    }
+
+    // Update the root
+    path[depth] = hash;
+    for (uint8 i = depth; i > 0; ) {
+      uint40 siblingIndex = ((self.numberOfLeaves - 1) >> i) ^ 1;
+      uint256 siblingHash = self.elements[_indexForElement(i - 1, siblingIndex)];
+      if ((siblingIndex & 1) == 0) {
+        // Sibling is a left child
+        path[i - 1] = PoseidonT3.poseidon([siblingHash, path[i]]);
+      } else {
+        // Sibling is a right child
+        path[i - 1] = PoseidonT3.poseidon([path[i], siblingHash]);
+      }
+
+      unchecked {
+        i--;
+      }
+    }
+
+    // This is the new root
+    return path[0];
+  }
+
   /// @notice Updates the levels of the LazyIMT
   /// @param self The LazyIMTData
   /// @param numberOfLeaves The number of leaves
@@ -190,9 +237,6 @@ library InternalLazyIMT {
   ) internal view {
     if (depth > MAX_DEPTH) {
       revert DepthTooLarge();
-    }
-    if (numberOfLeaves == 0) {
-      revert NumberOfLeavesCannotBeZero();
     }
 
     // this should always short circuit if self.numberOfLeaves == 0
