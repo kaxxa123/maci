@@ -16,6 +16,7 @@ import {
   type DeployedContracts,
   type DeployArgs,
 } from "../utils";
+import { storeSubgraphNetworks } from "../utils/storage";
 
 /**
  * Deploy MACI and related contracts
@@ -105,6 +106,11 @@ export const deploy = async ({
   storeContractAddress("PoseidonT4", poseidonAddrs.poseidonT4, network?.name);
   storeContractAddress("PoseidonT5", poseidonAddrs.poseidonT5, network?.name);
   storeContractAddress("PoseidonT6", poseidonAddrs.poseidonT6, network?.name);
+
+  // save to the subgraph networks.json file
+  await maciContract.waitForDeployment();
+  const txn = maciContract.deploymentTransaction();
+  storeSubgraphNetworks("MACI", maciContractAddress, txn?.blockNumber ?? 0, network?.name);
 
   logGreen(quiet, success(`MACI deployed at:  ${maciContractAddress}`));
 
