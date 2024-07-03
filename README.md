@@ -177,20 +177,20 @@ git checkout -b kaxxa123
 1.  Signup voter, using public key and MACI contract address
     from [./contracts/deployed-contracts.json](./contracts/deployed-contracts.json)
 
-        ```BASH
-        # Initialize some useful environment variables
-        cd contracts
-        source ../kaxxa123_scripts/setenv.sh
+    ```BASH
+    # Initialize some useful environment variables
+    cd contracts
+    source ../kaxxa123_scripts/setenv.sh
 
-        cd ../cli
-        node build/ts/index.js signup -p "${voters[0,0]}" -x ${MACI}
-        node build/ts/index.js signup -p "${voters[1,0]}" -x ${MACI}
-        node build/ts/index.js signup -p "${voters[2,0]}" -x ${MACI}
-        node build/ts/index.js signup -p "${voters[3,0]}" -x ${MACI}
+    cd ../cli
+    node build/ts/index.js signup -p "${voters[0,0]}" -x ${MACI}
+    node build/ts/index.js signup -p "${voters[1,0]}" -x ${MACI}
+    node build/ts/index.js signup -p "${voters[2,0]}" -x ${MACI}
+    node build/ts/index.js signup -p "${voters[3,0]}" -x ${MACI}
 
-        # Note each signup is assigned a state index required on submitting votes...
-        # [✓] State index: 1
-        ```
+    # Note each signup is assigned a state index required on submitting votes...
+    # [✓] State index: 1
+    ```
 
 1.  Submit votes: <BR />
 
@@ -284,18 +284,34 @@ git checkout -b kaxxa123
 1. Generate proofs
 
    ```BASH
+   # If election did NOT use Quadratic Voting
    node build/ts/index.js genProofs \
        --maci-address $MACI \
        -sk $AGENTSK \
        --poll-id  0 \
        --state-file  ./localState.json \
+       --wasm true \
+       --tally-file ./tally.json \
+       --output ./proofs \
+       --use-quadratic-voting false \
+       --process-zkey ./zkeys/ProcessMessagesNonQv_10-2-1-2_test/ProcessMessagesNonQv_10-2-1-2_test.0.zkey \
+       --tally-zkey   ./zkeys/TallyVotesNonQv_10-1-2_test/TallyVotesNonQv_10-1-2_test.0.zkey \
+       --tally-wasm   ./zkeys/TallyVotesNonQv_10-1-2_test/TallyVotesNonQv_10-1-2_test_js/TallyVotesNonQv_10-1-2_test.wasm \
+       --process-wasm ./zkeys/ProcessMessagesNonQv_10-2-1-2_test/ProcessMessagesNonQv_10-2-1-2_test_js/ProcessMessagesNonQv_10-2-1-2_test.wasm
+
+   # If election USED Quadratic Voting
+   node build/ts/index.js genProofs \
+       --maci-address $MACI \
+       -sk $AGENTSK \
+       --poll-id  0 \
+       --state-file  ./localState.json \
+       --wasm true \
+       --tally-file ./tally.json \
+       --output ./proofs \
        --process-zkey ./zkeys/ProcessMessages_10-2-1-2_test/ProcessMessages_10-2-1-2_test.0.zkey \
        --tally-zkey   ./zkeys/TallyVotes_10-1-2_test/TallyVotes_10-1-2_test.0.zkey \
        --tally-wasm   ./zkeys/TallyVotes_10-1-2_test/TallyVotes_10-1-2_test_js/TallyVotes_10-1-2_test.wasm \
-       --process-wasm ./zkeys/ProcessMessages_10-2-1-2_test/ProcessMessages_10-2-1-2_test_js/ProcessMessages_10-2-1-2_test.wasm \
-       --wasm true \
-       --tally-file ./tally.json \
-       --output ./proofs
+       --process-wasm ./zkeys/ProcessMessages_10-2-1-2_test/ProcessMessages_10-2-1-2_test_js/ProcessMessages_10-2-1-2_test.wasm
 
    cat ./tally.json
    ```
@@ -309,6 +325,16 @@ git checkout -b kaxxa123
        --tally-contract  $TALLY  \
        --poll-id  0 \
        --proof-dir  ./proofs/
+   ```
+
+1. Verify tally
+
+   ```BASH
+   node build/ts/index.js verify \
+       --maci-address $MACI \
+       --tally-contract $TALLY \
+       --poll-id  0 \
+       --tally-file ./tally.json
    ```
 
 <BR />

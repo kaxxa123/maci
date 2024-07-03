@@ -2,6 +2,7 @@
 # > source ../kaxxa123_scripts/setenv.sh
 
 export MACI=$(jq -r '.localhost.named.MACI.address' ./deployed-contracts.json)
+export VKREG=$(jq -r '.localhost.named.VkRegistry.address' ./deployed-contracts.json)
 export MSGPROC=$(jq -r '.localhost.named.MessageProcessor."poll-0".address' ./deployed-contracts.json)
 export TALLY=$(jq -r '.localhost.named.Tally."poll-0".address' ./deployed-contracts.json)
 
@@ -19,6 +20,7 @@ voters[3,0]="macipk.8a805807c14e6889031568fd92afa31365094d13cfc0db17d6aca969776d
 voters[3,1]="macisk.705600c2ae40706cb66de9c5794bbe15ad8147fcd85e54b91eaccfc3e6d35179"
 
 echo "MACI Contract: $MACI"
+echo "VK Registry Contract: $VKREG"
 echo "TALLY Contract: $TALLY"
 echo "Message Processor Contract: $MSGPROC"
 echo "Agent public key:  $AGENTPK"

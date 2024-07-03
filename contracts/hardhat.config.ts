@@ -87,7 +87,7 @@ const config: HardhatUserConfig = {
       throwOnCallFailures: true,
       mining: {
         auto: true,
-        interval: 200,
+        interval: 100,
       },
       forking: process.env.FORKING_URL
         ? {
