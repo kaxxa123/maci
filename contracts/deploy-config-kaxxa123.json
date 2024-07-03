@@ -1,0 +1,37 @@
+{
+  "localhost": {
+    "FreeForAllGatekeeper": {
+      "deploy": true
+    },
+    "MACI": {
+      "stateTreeDepth": 10,
+      "gatekeeper": "FreeForAllGatekeeper"
+    },
+    "VkRegistry": {
+      "stateTreeDepth": 10,
+      "intStateTreeDepth": 1,
+      "messageTreeDepth": 2,
+      "voteOptionTreeDepth": 2,
+      "messageBatchDepth": 1,
+      "zkeys": {
+        "qv": {
+          "processMessagesZkey": "../cli/zkeys/ProcessMessages_10-2-1-2_test/ProcessMessages_10-2-1-2_test.0.zkey",
+          "tallyVotesZkey": "../cli/zkeys/TallyVotes_10-1-2_test/TallyVotes_10-1-2_test.0.zkey",
+          "processWasm": "../cli/zkeys/ProcessMessages_10-2-1-2_test/ProcessMessages_10-2-1-2_test_js/ProcessMessages_10-2-1-2_test.wasm",
+          "tallyWasm": "../cli/zkeys/TallyVotes_10-1-2_test/TallyVotes_10-1-2_test_js/TallyVotes_10-1-2_test.wasm"
+        },
+        "nonQv": {
+          "processMessagesZkey": "../cli/zkeys/ProcessMessagesNonQv_10-2-1-2_test/ProcessMessagesNonQv_10-2-1-2_test.0.zkey",
+          "tallyVotesZkey": "../cli/zkeys/TallyVotesNonQv_10-1-2_test/TallyVotesNonQv_10-1-2_test.0.zkey",
+          "processWasm": "../cli/zkeys/ProcessMessagesNonQv_10-2-1-2_test/ProcessMessagesNonQv_10-2-1-2_test_js/ProcessMessagesNonQv_10-2-1-2_test.wasm",
+          "tallyWasm": "../cli/zkeys/TallyVotesNonQv_10-1-2_test/TallyVotesNonQv_10-1-2_test_js/TallyVotesNonQv_10-1-2_test.wasm"
+        }
+      }
+    },
+    "Poll": {
+      "pollDuration": 3600,
+      "coordinatorPubkey": "macipk.15d9b3b1dc8a20ce47186ecff14102d4874abfce4f1e0d4168810290740f58a4",
+      "useQuadraticVoting": false
+    }
+  }
+}
